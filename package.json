@@ -1,6 +1,6 @@
 {
   "name": "htmx-signalr",
-  "version": "1.0.0",
+  "version": "1.0.1-alpha.0",
   "description": "htmx extension for interacting with ASP.NET Core SignalR connections directly from HTML",
   "main": "hx-signalr.js",
   "scripts": {},
