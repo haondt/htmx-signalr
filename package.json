@@ -20,5 +20,8 @@
   "homepage": "https://gitlab.com/haondt/htmx-signalr#readme",
   "dependencies": {
     "htmx.org": "^2.0.8"
-  }
+  },
+  "files": [
+      "hx-signalr.js"
+  ]
 }
