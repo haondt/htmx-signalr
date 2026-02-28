@@ -1,0 +1,7 @@
+tasks:
+  - type: bun-build
+    auto:
+      - source: push
+    package: htmx-signalr
+    registries:
+      - gitlab
