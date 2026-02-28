@@ -2,6 +2,6 @@ tasks:
   - type: bun-build
     auto:
       - source: push
-    package: htmx-signalr
+    package: "@haondt/htmx-signalr"
     registries:
       - gitlab
