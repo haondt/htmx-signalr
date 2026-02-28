@@ -4,7 +4,7 @@
   "description": "htmx extension for interacting with ASP.NET Core SignalR connections directly from HTML",
   "main": "dist/hx-signalr.min.js",
   "scripts": {
-      "build": "mkdir -p dist && bun build hx-signalr.js --production > dist/hx-signalr.min.js && cp hx-signalr.js dist"
+    "build": "mkdir -p dist && bun build hx-signalr.js --production > dist/hx-signalr.min.js && cp hx-signalr.js dist"
   },
   "repository": {
     "type": "git",
@@ -24,6 +24,6 @@
     "htmx.org": "^2.0.8"
   },
   "files": [
-      "dist"
+    "dist"
   ]
 }

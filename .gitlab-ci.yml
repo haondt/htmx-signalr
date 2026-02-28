@@ -1,6 +1,6 @@
 include:
   - project: 'haondt/CICD/pipelines'
-    ref: bun
+    ref: main
     file: 'generate.yml'
 
 workflow:
