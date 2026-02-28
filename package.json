@@ -1,0 +1,24 @@
+{
+  "name": "htmx-signalr",
+  "version": "1.0.0",
+  "description": "htmx extension for interacting with ASP.NET Core SignalR connections directly from HTML",
+  "main": "hx-signalr.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/haondt/htmx-signalr.git"
+  },
+  "keywords": [
+    "htmx",
+    "signalr"
+  ],
+  "author": "haondt",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://gitlab.com/haondt/htmx-signalr/issues"
+  },
+  "homepage": "https://gitlab.com/haondt/htmx-signalr#readme",
+  "dependencies": {
+    "htmx.org": "^2.0.8"
+  }
+}
