@@ -15,6 +15,7 @@ by bigskysoftware.
 	var signalRConnect = "signalr-connect";
 	var signalRSubscribe = "signalr-subscribe";
 	var signalRSend = "signalr-send";
+	var signalRConnection = "signalr-connection";
 
 	htmx.defineExtension("signalr", {
 
@@ -105,12 +106,24 @@ by bigskysoftware.
 		hubConnection.onclose(function (error) {
 			api.triggerEvent(hubElt, 'htmx:signalr:close', { error: error });
 		});
-		hubConnection.start().then(function () {
-			api.triggerEvent(hubElt, 'htmx:signalr:start', { connectionId: hubConnection.connectionId })
-		});
 
 		// Put the HubConnection into the HTML Element's custom data.
 		api.getInternalData(hubElt).HubConnection = hubConnection;
+
+		hubConnection.start().then(function () {
+			api.triggerEvent(hubElt, 'htmx:signalr:start', { connectionId: hubConnection.connectionId })
+
+			// Reprocess external listeners
+			var hubId = hubElt.id;
+			if (hubId) {
+				forEach(queryAttributeOnExternalConnections(hubId, signalRSubscribe), function (child) {
+					ensureSubscription(child)
+				});
+				forEach(queryAttributeOnExternalConnections(hubId, signalRSend), function (child) {
+					ensureSending(child)
+				});
+			}
+		});
 	}
 
 	/**
@@ -134,6 +147,21 @@ by bigskysoftware.
 
 		if (!hubElement) {
 			return;
+		}
+
+		var internalData = api.getInternalData(hubElement);
+
+		// The hub is not initialized yet, we will wait for its signal
+		if (!internalData.HubConnection) {
+			hubElement.addEventListener("htmx:signalr:start", function handler() {
+				hubElement.removeEventListener("htmx:signalr:start", handler);
+				ensureSending(elt);
+			});
+
+			// Double check that there is still no connection, in case there is a race condition
+			if (!internalData.HubConnection) {
+				return;
+			}
 		}
 
 		processHubConnectionSend(hubElement, elt);
@@ -163,13 +191,42 @@ by bigskysoftware.
 			return;
 		}
 
-		var hubConnection = api.getInternalData(hubElement).HubConnection;
+		var internalData = api.getInternalData(hubElement);
+
+		// The hub is not initialized yet, we will wait for its signal
+		if (!internalData.HubConnection) {
+			hubElement.addEventListener("htmx:signalr:start", function handler() {
+				hubElement.removeEventListener("htmx:signalr:start", handler);
+				ensureSubscription(elt);
+			});
+
+			// Double check that there is still no connection, in case there is a race condition
+			if (!internalData.HubConnection) {
+				return;
+			}
+		}
+
+		var hubConnection = internalData.HubConnection;
+		var nodeData = api.getInternalData(elt);
+
+		// Already subscribed
+		if (nodeData.signalRHubConnection === hubConnection) {
+			return;
+		}
 
 		var signalrSubscribeAttribute = api.getAttributeValue(elt, signalRSubscribe);
-		var signalrMethodNames = signalrSubscribeAttribute.split(",");
+		var signalrMethodNames = signalrSubscribeAttribute.split(",").map(function (m) { return m.trim(); });
+
+		// Mismatch - unsubscribe from old connection before re-registering
+		if (nodeData.signalRHubConnection) {
+			signalrMethodNames.forEach(function (method) {
+				nodeData.signalRHubConnection.off(method);
+			});
+		}
+		nodeData.signalRHubConnection = hubConnection;
 
 		for (let i = 0; i < signalrMethodNames.length; i++) {
-			var method = signalrMethodNames[i].trim();
+			var method = signalrMethodNames[i];
 
 			hubConnection.on(method, function handler(message) {
 				if (maybeCloseHubConnectionSource(hubElement)) {
@@ -221,8 +278,22 @@ by bigskysoftware.
 	function processHubConnectionSend(hubElt, sendElt) {
 		var nodeData = api.getInternalData(sendElt);
 		var triggerSpecs = api.getTriggerSpecs(sendElt);
+
+		// Already set up
+		if (nodeData.signalRHubElt === hubElt) {
+			return;
+		}
+
+		// Already set up, but pointing at the wrong hub
+		if (nodeData.signalRHubElt) {
+			nodeData.signalRHubElt = hubElt;
+			return;
+		}
+
+		nodeData.signalRHubElt = hubElt;
 		triggerSpecs.forEach(function (ts) {
 			api.addTriggerHandler(sendElt, ts, nodeData, function (elt, evt) {
+				hubElt = nodeData.signalRHubElt;
 				var HubConnection = api.getInternalData(hubElt).HubConnection;
 				var method = api.getAttributeValue(sendElt, signalRSend);
 				var headers = api.getHeaders(sendElt, hubElt);
@@ -284,7 +355,7 @@ by bigskysoftware.
 			api.getInternalData(hubElement).HubConnection.off(subscription, handler);
 			return true;
 		}
-		if (api.getAttributeValue(elt, signalRSubscribe).split(",").indexOf(subscription) == -1) {
+		if (api.getAttributeValue(elt, signalRSubscribe).split(",").map(function (m) { return m.trim(); }).indexOf(subscription) == -1) {
 			api.getInternalData(hubElement).HubConnection.off(subscription, handler);
 			return true;
 		}
@@ -329,11 +400,29 @@ by bigskysoftware.
 	}
 
 	/**
+	 * queryAttributeOnExternalConnectsions returns all nodes that contain the requested attributeName, as well as signalr-connection
+	 *
+	 * @param {string} connectionId
+	 * @param {string} attributeName
+	 */
+	function queryAttributeOnExternalConnections(connectionId, attributeName) {
+		return document.body.querySelectorAll("[" + attributeName + "][" + signalRConnection + "=\"" + connectionId + "\"], [data-" + attributeName + "][data-" + signalRConnection + "=\"" + connectionId + "\"]");
+	}
+
+	/**
 	 * findParentWithHubConnection returns all nodes that contain the requested attributeName, INCLUDING THE PROVIDED ROOT ELEMENT.
 	 *
 	 * @param {HTMLElement} elt
 	 */
 	function findParentWithHubConnection(elt) {
+		var conn = api.getAttributeValue(elt, signalRConnection);
+		if (conn) {
+			var connElt = document.getElementById(conn);
+			if (!hasHubConnection(connElt)) {
+				return;
+			}
+			return connElt;
+		}
 		var match = api.getClosestMatch(elt, hasHubConnection);
 		return match;
 	}
